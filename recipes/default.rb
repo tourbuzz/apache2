@@ -190,17 +190,27 @@ apache_site node['apache']['default_site_name'] do
   enable node['apache']['default_site_enabled']
 end
 
-service 'apache2' do
-  service_name node['apache']['package']
-  case node['platform_family']
-  when 'rhel'
-    reload_command '/sbin/service httpd graceful'
-  when 'debian'
-    provider Chef::Provider::Service::Debian
-  when 'arch'
-    service_name 'httpd'
+if node['platform'] == 'ubuntu' && node['platform_version'].to_f >= 13.10
+  cookbook_file "/etc/init/apache2.conf"
+end
+
+%w(0 1 2 3 4 5 6).each do |n|
+  file "/etc/rc#{n}.d/K09apache2" do
+    action :delete
   end
-  supports [:start, :restart, :reload, :status]
+
+  file "/etc/rc#{n}.d/S91apache2" do
+    action :delete
+  end
+end
+
+file "/etc/init.d/apache2" do
+  action :delete
+end
+
+service 'apache2' do
+  provider Chef::Provider::Service::Upstart
+  supports [:enable, :start, :restart, :reload, :status]
   action [:enable, :start]
   only_if "#{node['apache']['binary']} -t", :environment => { 'APACHE_LOG_DIR' => node['apache']['log_dir'] }, :timeout => 10
 end
